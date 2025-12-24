@@ -169,15 +169,29 @@ def type_stream(text: str) -> Generator[str, None, None]:
 # --------------------------
 if __name__ == "__main__":
     import sys
+    from datetime import datetime
 
-    print("🔡 Khipro Typing Preview (Press Enter to quit)\n")
+    output_file = "khipro_typing_log.txt"
+
+    print(f"🔡 Khipro Typing Preview (Press Enter to quit)")
+    print(f"Output will be saved to: {output_file}\n")
 
     while True:
         user_input = input("Type in khipro syntax: ").strip()
         if not user_input:
             break
 
-        print("\nLive Typing:")
-        for step, out in enumerate(type_stream(user_input), 1):
-            print(f"{user_input[:step]!r} → {out}")
+        with open(output_file, 'a', encoding='utf-8') as f:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"\n{'='*60}\n")
+            f.write(f"Timestamp: {timestamp}\n")
+            f.write(f"Input: {user_input}\n\n")
+            f.write("Live Typing Progression:\n")
+
+            for step, out in enumerate(type_stream(user_input), 1):
+                f.write(f"{user_input[:step]} → {out}\n")
+
+            f.write(f"{'='*60}\n")
+
+        print(f"✓ Saved to {output_file}")
         print("-" * 40)
