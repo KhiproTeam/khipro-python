@@ -38,40 +38,36 @@ def check_string_against_dicts(input_str, *dicts):
     # Rule 3: return where it matched
     return matched_dict_indices
 
+def processable_slice (string:str, pointer:int):
+    return string[:pointer]
+
+def refundable_slice (string:str, pointer:int):
+    return string[pointer:]
 
 def init_state(string):
     list_of_dictionaries = [shor, kar, byanjon]
     pointer = longest_key_length(*list_of_dictionaries)
 
-    processable_slice = string[:pointer]
-    refundnable_slice = string[pointer:]
-
-    decision = check_string_against_dicts(
-        processable_slice, *list_of_dictionaries)
+    decision = check_string_against_dicts(processable_slice(string,pointer), *list_of_dictionaries)
 
     if decision == -1:
         print("Impossibly -1 was returned.")
 
     while pointer > 0:
-        decision = check_string_against_dicts(
-            processable_slice, *list_of_dictionaries)
+        decision = check_string_against_dicts(processable_slice(string, pointer), *list_of_dictionaries)
         if decision == 0:
-            pointer -= 1  # যদি ম্যাচ না পাওয়া যায় তাহলে পয়েন্টার একঘর বামে সরাবে। তাহলে প্রসেসেবল স্ত্রিং ছোটো হবে।
+            pointer -= 1  # যদি ম্যাচ না পাওয়া যায় তাহলে পয়েন্টার একঘর বামে সরাবে। তাহলে প্রসেসেবল স্ট্রিং ছোটো হবে।
         elif decision not in {0, -1}:
             break  # অর্থাৎ, ম্যাচ পাওয়া গেছে।
+        elif pointer == 1:
+            break # অর্থাৎ ম্যাচ পাওয়া যায় নি। কিন্তু স্লাইস এক ক্য‍ারেক্টারের হয়ে গেছে।
 
     if decision == 0:  # যদি এখনও no-match অবস্থা থাকে তাহলে...
-        refundnable_slice = string[pointer:]
-        output = processable_slice
-        return (output, refundnable_slice)
+        
+        output = processable_slice(string, pointer) # অর্থাৎ প্রথম ক্য‍ারেক্টার, যেটা ম্যাচ হয়নি, সেটাকেই ইংরেজি অবস্থাতেই পাঠিয়ে দেওয়া হচ্ছে।
+        return (output, refundable_slice(string, pointer))
 
-    # if decision == -1:
-    #     decision = string[:longest_key_length(list_of_dictionaries)]
+    elif decision not in {0, -1}: # যদি এক বা একাধিক ম্যাচ পাওয়া যায়...
+        pass
+    
 
-    # if decision == 0:
-    #     while True:
-    #         i = 1
-    #         decision = check_string_against_dicts(string[:-i])
-    #         i += 1
-    #         if string[:-i] == '':
-    #             break
