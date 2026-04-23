@@ -71,10 +71,10 @@ def init_state(string:str):
 
     if decision == 0:  # যদি এখনও no-match অবস্থা থাকে তাহলে... ## NIL_MATCH
         output_stream.append(string[:pointer]) # অর্থাৎ প্রথম ক্য‍ারেক্টার, যেটা ম্যাচ হয়নি, সেটাকেই ইংরেজি অবস্থাতেই পাঠিয়ে দেওয়া হচ্ছে।
-        init_state(refundable_slice(string, pointer))
+        init_state(refundable_slice(string, pointer)) # প্রথম ক্য‍ারেকটার বাদে বাকি অংশ পরের স্টেটে পাঠানো হচ্ছে।
         
 
-    elif decision not in {0, -1}: # যদি এক বা একাধিক ম্যাচ পাওয়া যায়...
+    elif decision not in {0, -1}: # যদি এক বা একাধিক ম্যাচ পাওয়া যায়... তাহলে অগ্রাধিকার অনুযায়ী চেক করতে হবে।
         if 0 in decision: # shor
             output_stream.append(shor[processable_slice])
             shor_state(refundable_slice)
