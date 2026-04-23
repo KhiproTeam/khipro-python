@@ -50,14 +50,17 @@ def tokenizer(string:str, list_of_dictionaries:list[dict]):
         if decision == -1:
             print("Impossibly -1 was returned.")
 
-        while pointer > 0:
+        while True:
             decision = check_string_against_dicts(processable_slice(string, pointer), *list_of_dictionaries)
-            if decision == 0:
-                pointer -= 1  # যদি ম্যাচ না পাওয়া যায় তাহলে পয়েন্টার একঘর বামে সরাবে। তাহলে প্রসেসেবল স্ট্রিং ছোটো হবে।
-            elif decision not in {0, -1}:
-                break  # অর্থাৎ, ম্যাচ পাওয়া গেছে।
-            elif pointer == 1:
-                break # অর্থাৎ ম্যাচ পাওয়া যায় নি। কিন্তু স্লাইস এক ক্য‍ারেক্টারের হয়ে গেছে।
+            # ম্যাচ হলো কি না হলো, ফলাফল পাওয়া গেছে।
+            if pointer == 1:
+                break # স্লাইস ছোটো হতে হতে ১ ক্য‍ারেকটারের হয়ে গেছে। ম্যাচ হোক না হোক, ব্রেক করতে হবে।
+
+            if decision not in {0, -1}:
+                break  # অর্থাৎ, ম্যাচ পাওয়া গেছে। স্লাইস যত বড়োই হোক, ব্রেক করতে হবে।
+            elif decision == 0:
+                pointer -= 1  # যদি ম্যাচ না পাওয়া যায় তাহলে পয়েন্টার একঘর বামে সরাবে। তাহলে প্রসেসেবল স্ট্রিং ছোটো হবে। লুপ আবার চলবে।
+            
 
         return (decision, pointer)
 
@@ -67,8 +70,9 @@ def init_state(string:str):
 
     decision, pointer = tokenizer(string, list_of_dictionaries)
 
-    if decision == 0:  # যদি এখনও no-match অবস্থা থাকে তাহলে...
-        output = processable_slice(string, pointer) # অর্থাৎ প্রথম ক্য‍ারেক্টার, যেটা ম্যাচ হয়নি, সেটাকেই ইংরেজি অবস্থাতেই পাঠিয়ে দেওয়া হচ্ছে।
+    if decision == 0:  # যদি এখনও no-match অবস্থা থাকে তাহলে... ## NIL_MATCH
+        output_stream.append(string[:pointer]) # অর্থাৎ প্রথম ক্য‍ারেক্টার, যেটা ম্যাচ হয়নি, সেটাকেই ইংরেজি অবস্থাতেই পাঠিয়ে দেওয়া হচ্ছে।
+        init_state(refundable_slice(string, pointer))
         return (output, refundable_slice(string, pointer))
 
     elif decision not in {0, -1}: # যদি এক বা একাধিক ম্যাচ পাওয়া যায়...
