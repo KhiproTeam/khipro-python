@@ -16,7 +16,7 @@ def longest_key_length(*dicts):
     return max_len
 
 
-def check_string_against_dicts(input_str, *dicts):
+def check_string_against_dicts(input_str:str, *dicts):
     # Step 1: get longest key length
     max_key_len = longest_key_length(*dicts)
 
@@ -44,9 +44,9 @@ def processable_slice (string:str, pointer:int):
 def refundable_slice (string:str, pointer:int):
     return string[pointer:]
 
-def tokenizer(string:str, pointer:int):
+def tokenizer(string:str, list_of_dictionaries:list[dict]):
         decision = check_string_against_dicts(processable_slice(string,pointer), *list_of_dictionaries)
-
+        pointer = longest_key_length(*list_of_dictionaries)
         if decision == -1:
             print("Impossibly -1 was returned.")
 
@@ -59,16 +59,15 @@ def tokenizer(string:str, pointer:int):
             elif pointer == 1:
                 break # অর্থাৎ ম্যাচ পাওয়া যায় নি। কিন্তু স্লাইস এক ক্য‍ারেক্টারের হয়ে গেছে।
 
-        return decision
+        return (decision, pointer)
 
-def init_state(string):
+def init_state(string:str):
     list_of_dictionaries = [shor, byanjon]
-    pointer = longest_key_length(*list_of_dictionaries)
+    
 
-    decision = tokenizer(string, pointer)
+    decision, pointer = tokenizer(string, list_of_dictionaries)
 
     if decision == 0:  # যদি এখনও no-match অবস্থা থাকে তাহলে...
-        
         output = processable_slice(string, pointer) # অর্থাৎ প্রথম ক্য‍ারেক্টার, যেটা ম্যাচ হয়নি, সেটাকেই ইংরেজি অবস্থাতেই পাঠিয়ে দেওয়া হচ্ছে।
         return (output, refundable_slice(string, pointer))
 
@@ -79,4 +78,10 @@ def init_state(string):
         elif 1 in decision: # byanjon
             output_stream.append(byanjon[processable_slice])
             byanjon_state(refundable_slice)
+
+def shor_state(string:str):
+    pass
+
+def byanjon_state(string:str):
+    pass
 
