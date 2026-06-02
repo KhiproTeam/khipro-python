@@ -1,471 +1,390 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, List, Tuple, Generator
+"""
+Khipro Bengali Input Method - Python Implementation
+Comprehensive state machine implementation of the khipro-m17n input method.
+Follows the logic from bn-khipro.mim verbatim with context-aware conjunct handling.
+
+MIT License - Copyright (c) 2024 rank_coder
+"""
+from typing import Dict, List, Tuple, Generator, Optional
+from dataclasses import dataclass
 
 # --------------------------
-# Mapping groups (exactly as provided)
+# Mapping groups (exactly as in bn-khipro.mim)
 # --------------------------
 
 SHOR: Dict[str, str] = {
-    "o": "অ", "a": "আ", "i": "ই", "ii": "ঈ", "u": "উ", "uu": "ঊ", "q": "ঋ", "e": "এ", "oi": "ঐ", "w": "ও", "ou": "ঔ", "ae": "অ্যা", 
-	"wa": "ওয়া", "wae": "ওয়্যা", "we": "ওয়ে", 
-	"ooo": "অং",
-		
-	"oof": "ঽ",
+    "o": "অ", "a": "আ", "i": "ই", "ii": "ঈ", "u": "উ", "uu": "ঊ", "q": "ঋ", "e": "এ", "wi": "ঐ", 
+    "w": "ও", "wu": "ঔ", "ae": "অ্যা", "wa": "ওয়া", "wae": "ওয়্যা", "we": "ওয়ে", 
+    "ooo": "অঃ", "off": "ঽ",
 }
 
 FKAR: Dict[str, str] = {
-    "fuf": "‌ু", "fuuf": "‌ূ", "fqf": "‌ৃ", 
-	"fa": "া",
-	"fi": "ি", 
-	"fii": "ী", 
-	"fu": "ু", 
-	"fuu": "ূ", 
-	"fq": "ৃ", 
-	"fe": "ে", 
-	"foi": "ৈ", 
-	"fw": "ো", 
-	"fou": "ৌ", 
-	"fae": "্যা",
-	"fwa": "োয়া",
-	"fwe": "োয়ে",
-	"oo": "ং", 
+    "uff": "‌ু", "uuff": "‌ূ", "qff": "‌ৃ", "of": "ঽ", "af": "া", "if": "ি", "iif": "ী", 
+    "uf": "ু", "uuf": "ূ", "qf": "ৃ", "ef": "ে", "wif": "ৈ", "wf": "ো", "wuf": "ৌ", 
+    "aef": "্যা", "waf": "োয়া", "wef": "োয়ে", "oo": "ঃ",
 }
 
-BYANJON: Dict[str, str] = {
-    "k": "ক", "kh": "খ", "g": "গ", "gh": "ঘ", "ngf": "ঙ",
-	"c": "চ", "ch": "ছ", "j": "জ", "jh": "ঝ", "nff": "ঞ", 
-	"tf": "ট", "tff": "ঠ", "df": "ড", "dff": "ঢ", "nf": "ণ", 
-	"t": "ত", "th": "থ", "d": "দ", "dh": "ধ", "n": "ন", 
-	"p": "প", "ph": "ফ", "b": "ব", "v": "ভ", "m": "ম", 
-	"z": "য", "l": "ল", "sh": "শ", "sf": "ষ", "s": "স", "h": "হ", 
-	"y": "য়", "rf": "ড়", "rff": "ঢ়",
-	",,": "়",
+# BYANJON with CID (Consonant ID) for context tracking
+BYANJON: Dict[str, Tuple[str, int]] = {
+    "k": ("ক", 1), "kh": ("খ", 2), "g": ("গ", 3), "gh": ("ঘ", 4), "ng": ("ঙ", 5),
+    "c": ("চ", 6), "ch": ("ছ", 7), "j": ("জ", 8), "jh": ("ঝ", 9), "nff": ("ঞ", 10), 
+    "tf": ("ট", 11), "tff": ("ঠ", 12), "df": ("ড", 13), "dff": ("ঢ", 14), "nf": ("ণ", 15), 
+    "t": ("ত", 16), "th": ("থ", 17), "d": ("দ", 18), "dh": ("ধ", 19), "n": ("ন", 20), 
+    "p": ("প", 21), "ph": ("ফ", 22), "b": ("ব", 23), "v": ("ভ", 24), "m": ("ম", 25), 
+    "z": ("য", 26), "r": ("র", 27), "l": ("ল", 28), "sh": ("শ", 29), "sf": ("ষ", 30), 
+    "s": ("স", 31), "h": ("হ", 32), "y": ("য়", 33), "rf": ("ড়", 34), "rff": ("ঢ়", 35), 
+    ",,": ("়", 36), "kf": ("ক্ষ", 39), "f": ("⁌", 189), "zf": ("্য", 190),
 }
 
-JUKTOBORNO: Dict[str, str] = {
-    "rz": "র‍্য",
-	"kk": "ক্ক", "ktf": "ক্ট", "ktfr": "ক্ট্র", "kt": "ক্ত", "ktr": "ক্ত্র", "kb": "ক্ব", "km": "ক্ম", "kz": "ক্য", "kr": "ক্র", "kl": "ক্ল",
-	"kf": "ক্ষ", "ksf": "ক্ষ", "kkh": "ক্ষ", "kfnf": "ক্ষ্ণ", "kfn": "ক্ষ্ণ", "ksfnf": "ক্ষ্ণ", "ksfn": "ক্ষ্ণ", "kkhn": "ক্ষ্ণ", "kkhnf": "ক্ষ্ণ", "kfb": "ক্ষ্ব", "ksfb": "ক্ষ্ব", "kkhb": "ক্ষ্ব", "kfm": "ক্ষ্ম", 
-	"kkhm": "ক্ষ্ম", "ksfm": "ক্ষ্ম", "kfz": "ক্ষ্য", "ksfz": "ক্ষ্য", "kkhz": "ক্ষ্য",
-	"ks": "ক্স",
-	"khz": "খ্য", "khr": "খ্র",
-	"ggg": "গ্গ", "gnf": "গ্‌ণ", "gdh": "গ্ধ", "gdhz": "গ্ধ্য", "gdhr": "গ্ধ্র", "gn": "গ্ন", "gnz": "গ্ন্য", "gb": "গ্ব", "gm": "গ্ম", "gz": "গ্য", "gr": "গ্র", "grz": "গ্র্য", "gl": "গ্ল",
-	"ghn": "ঘ্ন", "ghr": "ঘ্র",
-	"ngk": "ঙ্ক", "ngkt": "ঙ্‌ক্ত", "ngkz": "ঙ্ক্য", "ngkr": "ঙ্ক্র", "ngkf": "ঙ্ক্ষ", "ngkkh": "ঙ্ক্ষ", "ngksf": "ঙ্ক্ষ", "ngkh": "ঙ্খ", "ngg": "ঙ্গ", "nggz": "ঙ্গ্য", "nggh": "ঙ্ঘ", "ngghz": "ঙ্ঘ্য", "ngghr": "ঙ্ঘ্র", "ngm": "ঙ্ম",
-	"ngfk": "ঙ্ক", "ngfkt": "ঙ্‌ক্ত", "ngfkz": "ঙ্ক্য", "ngfkr": "ঙ্ক্র", "ngfkf": "ঙ্ক্ষ", "ngfkkh": "ঙ্ক্ষ", "ngfksf": "ঙ্ক্ষ", "ngfkh": "ঙ্খ", "ngfg": "ঙ্গ", "ngfgz": "ঙ্গ্য", "ngfgh": "ঙ্ঘ", "ngfghz": "ঙ্ঘ্য", "ngfghr": "ঙ্ঘ্র", "ngfm": "ঙ্ম",
-	"cc": "চ্চ", "cch": "চ্ছ", "cchb": "চ্ছ্ব", "cchr": "চ্ছ্র", "cnff": "চ্ঞ", "cb": "চ্ব", "cz": "চ্য",
-	"jj": "জ্জ", "jjb": "জ্জ্ব", "jjh": "জ্ঝ", "gg": "জ্ঞ", "jnff": "জ্ঞ", "jb": "জ্ব", "jz": "জ্য", "jr": "জ্র",
-	"nc": "ঞ্চ", "nffc": "ঞ্চ", "nj": "ঞ্জ", "nffj": "ঞ্জ", "njh": "ঞ্ঝ", "nffjh": "ঞ্ঝ", "nch": "ঞ্ছ", "nffch": "ঞ্ছ",
-	"ttf": "ট্ট", "tftf": "ট্ট", "tfb": "ট্ব", "tfm": "ট্ম", "tfz": "ট্য", "tfr": "ট্র",
-	"ddf": "ড্ড", "dfdf": "ড্ড", "dfb": "ড্ব", "dfz": "ড্য", "dfr": "ড্র", "rfg": "ড়্‌গ",
-	"dffz": "ঢ্য", "dffr": "ঢ্র",
-	"nftf": "ণ্ট", "nftff": "ণ্ঠ", "nftffz": "ণ্ঠ্য", "nfdf": "ণ্ড", "nfdfz": "ণ্ড্য", "nfdfr": "ণ্ড্র", "nfdff": "ণ্ঢ", "nfnf": "ণ্ণ", "nfn": "ণ্ণ", "nfb": "ণ্ব", "nfm": "ণ্ম", "nfz": "ণ্য",
-	"tt": "ত্ত", "ttb": "ত্ত্ব", "ttz": "ত্ত্য", "tth": "ত্থ", "tn": "ত্ন", "tb": "ত্ব", "tm": "ত্ম", "tmz": "ত্ম্য", "tz": "ত্য", "tr": "ত্র", "trz": "ত্র্য",
-	"thb": "থ্ব", "thz": "থ্য", "thr": "থ্র",
-	"dg": "দ্‌গ", "dgh": "দ্‌ঘ", "dd": "দ্দ", "ddb": "দ্দ্ব", "ddh": "দ্ধ", "db": "দ্ব", "dv": "দ্ভ", "dvr": "দ্ভ্র", "dm": "দ্ম", "dz": "দ্য", "dr": "দ্র", "drz": "দ্র্য",
-	"dhn": "ধ্ন", "dhb": "ধ্ব", "dhm": "ধ্ম", "dhz": "ধ্য", "dhr": "ধ্র",
-	"ntf": "ন্ট", "ntfr": "ন্ট্র", "ntff": "ন্ঠ", "ndf": "ন্ড", "ndfr": "ন্ড্র", "nt": "ন্ত", "ntb": "ন্ত্ব", "ntr": "ন্ত্র", "ntrz": "ন্ত্র্য", "nth": "ন্থ", "nthr": "ন্থ্র", "nd": "ন্দ", "ndb": "ন্দ্ব", "ndz": "ন্দ্য", 
-	"ndr": "ন্দ্র", "ndh": "ন্ধ", "ndhz": "ন্ধ্য", "ndhr": "ন্ধ্র", "nn": "ন্ন", "nb": "ন্ব", "nm": "ন্ম", "nz": "ন্য", "ns": "ন্স",
-	"ptf": "প্ট", "pt": "প্ত", "pn": "প্ন", "pp": "প্প", "pz": "প্য", "pr": "প্র", "pl": "প্ল", "ps": "প্স",
-	"phr": "ফ্র", "phl": "ফ্ল",
-	"bj": "ব্জ", "bd": "ব্দ", "bdh": "ব্ধ", "bb": "ব্ব", "bz": "ব্য", "br": "ব্র", "bl": "ব্ল", "vb": "ভ্ব", "vz": "ভ্য", "vr": "ভ্র", "vl": "ভ্ল",
-	"mn": "ম্ন", "mp": "ম্প", "mpr": "ম্প্র", "mph": "ম্ফ", "mb": "ম্ব", "mbr": "ম্ব্র", "mv": "ম্ভ", "mvr": "ম্ভ্র", "mm": "ম্ম", "mz": "ম্য", "mr": "ম্র", "ml": "ম্ল",
-	"zz": "য্য",
-	"lk": "ল্ক", "lkz": "ল্ক্য", "lg": "ল্গ", "ltf": "ল্ট", "ldf": "ল্ড", "lp": "ল্প", "lph": "ল্ফ", "lb": "ল্ব", "lv": "ল্‌ভ", "lm": "ল্ম", "lz": "ল্য", "ll": "ল্ল",
-	"shc": "শ্চ", "shch": "শ্ছ", "shn": "শ্ন", "shb": "শ্ব", "shm": "শ্ম", "shz": "শ্য", "shr": "শ্র", "shl": "শ্ল",
-	"sfk": "ষ্ক", "sfkr": "ষ্ক্র", "sftf": "ষ্ট", "sftfz": "ষ্ট্য", "sftfr": "ষ্ট্র", "sftff": "ষ্ঠ", "sftffz": "ষ্ঠ্য", "sfnf": "ষ্ণ", "sfn": "ষ্ণ", "sfp": "ষ্প", "sfpr": "ষ্প্র", "sfph": "ষ্ফ", "sfb": "ষ্ব", 
-	"sfm": "ষ্ম", "sfz": "ষ্য",
-	"sk": "স্ক", "skr": "স্ক্র", "skh": "স্খ", "stf": "স্ট", "stfr": "স্ট্র", "st": "স্ত", "stb": "স্ত্ব", "stz": "স্ত্য", "str": "স্ত্র", "sth": "স্থ", "sthz": "স্থ্য", "sn": "স্ন", "sp": "স্প", "spr": "স্প্র", 
-	"spl": "স্প্ল", "sph": "স্ফ", "sb": "স্ব", "sm": "স্ম", "sz": "স্য", "sr": "স্র", "sl": "স্ল",
-	"hn": "হ্ন", "hnf": "হ্ণ", "hb": "হ্ব", "hm": "হ্ম", "hz": "হ্য", "hr": "হ্র", "hl": "হ্ল",
-
-    # oshomvob juktoborno
-    "ksh": "কশ", "kks": "কক্স",  "nsh": "নশ", "psh": "পশ", "ld": "লদ", "gd": "গদ", "ngkk": "ঙ্কক", "ngks": "ঙ্কস", "ngfkk": "ঙ্কক", "ngfks": "ঙ্কস",
-		
-	"cn": "চন", 
-		"cngf": "চঙ", "cnz": "চন্য", "cnf": "চণ", "cnm": "চন্ম", 
-		"cngk": "চঙ্ক", "cngkt": "চঙ্‌ক্ত", "cngkz": "চঙ্ক্য", "cngkr": "চঙ্ক্র", "cngkf": "চঙ্ক্ষ", "cngkkh": "চঙ্ক্ষ", "cngksf": "চঙ্ক্ষ", "cngkh": "চঙ্খ", "cngg": "চঙ্গ", "cnggz": "চঙ্গ্য", "cnggh": "চঙ্ঘ", "cngghz": "চঙ্ঘ্য", "cngghr": "চঙ্ঘ্র", "cngm": "চঙ্ম",
-		"cngfk": "চঙ্ক", "cngfkt": "চঙ্‌ক্ত", "cngfkz": "চঙ্ক্য", "cngfkr": "চঙ্ক্র", "cngfkf": "চঙ্ক্ষ", "cngfkkh": "চঙ্ক্ষ", "cngfksf": "চঙ্ক্ষ", "cngfkh": "চঙ্খ", "cngfg": "চঙ্গ", "cngfgz": "চঙ্গ্য", "cngfgh": "চঙ্ঘ", "cngfghz": "চঙ্ঘ্য", "cngfghr": "চঙ্ঘ্র", "cngfm": "চঙ্ম",
-		"cnc": "চঞ্চ", "cnffc": "চঞ্চ", "cnj": "চঞ্জ", "cnffj": "চঞ্জ", "cnjh": "চঞ্ঝ", "cnffjh": "চঞ্ঝ", "cnch": "চঞ্ছ", "cnffch": "চঞ্ছ",
-		"cnftf": "চণ্ট", "cnftff": "চণ্ঠ", "cnftffz": "চণ্ঠ্য", "cnfdf": "চণ্ড", "cnfdfz": "চণ্ড্য", "cnfdfr": "চণ্ড্র", "cnfdff": "চণ্ঢ", "cnfnf": "চণ্ণ", "cnfn": "চণ্ণ", "cnfb": "চণ্ব", "cnfm": "চণ্ম", "cnfz": "চণ্য",
-		"cntf": "চন্ট", "cntfr": "চন্ট্র", "cntff": "চন্ঠ", "cndf": "চন্ড", "cndfr": "চন্ড্র", "cnt": "চন্ত", "cntb": "চন্ত্ব", "cntr": "চন্ত্র", "cntrz": "চন্ত্র্য", "cnth": "চন্থ", "cnthr": "চন্থ্র", "cnd": "চন্দ", "cndb": "চন্দ্ব", "cndz": "চন্দ্য", 
-		"cndr": "চন্দ্র", "cndh": "চন্ধ", "cndhz": "চন্ধ্য", "cndhr": "চন্ধ্র", "cnn": "চন্ন", "cnb": "চন্ব", "cnm": "চন্ম", "cnz": "চন্য", "cns": "চন্স",
-		"cnsh": "চনশ",
-		"cngkk": "চঙ্কক", "cngks": "চঙ্কস", "cngfkk": "চঙ্কক", "cngfks": "চঙ্কস",
-		"cnft": "চণত", "cnfd": "চণদ", "cnfth": "চণথ", "cnfdh": "চণধ",
-		"cndff": "চনঢ", 
-		"cngkth": "চঙ্কথ", "cngkrf": "চঙ্কড়", "cngkrff": "চঙ্কঢ়", "cngghrf": "চঙ্ঘড়", "cngghrff": "চঙ্ঘঢ়",
-																					"cngfkth": "চঙ্কথ", "cngfkrf": "চঙ্কড়", "cngfkrff": "চঙ্কঢ়", "cngfghrf": "চঙ্ঘড়", "cngfghrff": "চঙ্ঘঢ়",
-		"cnfdfrf": "চণ্ডড়", "cnfdfrff": "চণ্ডঢ়",
-		"cntfrf": "চন্টড়", "cntfrff": "চন্টঢ়", "cndfrf": "চন্ডড়", "cndfrff": "চন্ডঢ়", "cntrf": "চন্তড়", "cntrff": "চন্তঢ়", "cnthrf": "চন্থড়", 
-		"cnstf": "চনস্ট", "cnst": "চনস্ত", "cnsk": "চনস্ক", 
-		"cnthrff": "চন্থঢ়", "cndrf": "চন্দড়", "cndrff": "চন্দঢ়", "cndhrf": "চন্ধড়", "cndhrff": "চন্ধঢ়",
-		"cngksh": "চঙ্কশ", "cngfksh": "চঙ্কশ",
-
-
-	"jn": "জন", 
-		"jngf": "জঙ", "jnf": "জণ", "jnz": "জন্য", "jnm": "জন্ম",
-		"jngk": "জঙ্ক", "jngkt": "জঙ্‌ক্ত", "jngkz": "জঙ্ক্য", "jngkr": "জঙ্ক্র", "jngkf": "জঙ্ক্ষ", "jngkkh": "জঙ্ক্ষ", "jngksf": "জঙ্ক্ষ", "jngkh": "জঙ্খ", "jngg": "জঙ্গ", "jnggz": "জঙ্গ্য", "jnggh": "জঙ্ঘ", "jngghz": "জঙ্ঘ্য", "jngghr": "জঙ্ঘ্র", "jngm": "জঙ্ম",
-		"jngfk": "জঙ্ক", "jngfkt": "জঙ্‌ক্ত", "jngfkz": "জঙ্ক্য", "jngfkr": "জঙ্ক্র", "jngfkf": "জঙ্ক্ষ", "jngfkkh": "জঙ্ক্ষ", "jngfksf": "জঙ্ক্ষ", "jngfkh": "জঙ্খ", "jngfg": "জঙ্গ", "jngfgz": "জঙ্গ্য", "jngfgh": "জঙ্ঘ", "jngfghz": "জঙ্ঘ্য", "jngfghr": "জঙ্ঘ্র", "jngfm": "জঙ্ম",
-		"jnc": "জঞ্চ", "jnffc": "জঞ্চ", "jnj": "জঞ্জ", "jnffj": "জঞ্জ", "jnjh": "জঞ্ঝ", "jnffjh": "জঞ্ঝ", "jnch": "জঞ্ছ", "jnffch": "জঞ্ছ",
-		"jnftf": "জণ্ট", "jnftff": "জণ্ঠ", "jnftffz": "জণ্ঠ্য", "jnfdf": "জণ্ড", "jnfdfz": "জণ্ড্য", "jnfdfr": "জণ্ড্র", "jnfdff": "জণ্ঢ", "jnfnf": "জণ্ণ", "jnfn": "জণ্ণ", "jnfb": "জণ্ব", "jnfm": "জণ্ম", "jnfz": "জণ্য",
-		"jntf": "জন্ট", "jntfr": "জন্ট্র", "jntff": "জন্ঠ", "jndf": "জন্ড", "jndfr": "জন্ড্র", "jnt": "জন্ত", "jntb": "জন্ত্ব", "jntr": "জন্ত্র", "jntrz": "জন্ত্র্য", "jnth": "জন্থ", "jnthr": "জন্থ্র", "jnd": "জন্দ", "jndb": "জন্দ্ব", "jndz": "জন্দ্য", 
-		"jndr": "জন্দ্র", "jndh": "জন্ধ", "jndhz": "জন্ধ্য", "jndhr": "জন্ধ্র", "jnn": "জন্ন", "jnb": "জন্ব", "jnm": "জন্ম", "jnz": "জন্য", "jns": "জন্স",
-		"jnsh": "জনশ",
-		"jngkk": "জঙ্কক", "jngks": "জঙ্কস", "jngfkk": "জঙ্কক", "jngfks": "জঙ্কস",
-		"jnft": "জণত", "jnfd": "জণদ", "jnfth": "জণথ", "jnfdh": "জণধ",
-		"jndff": "জনঢ", 
-		"jngkth": "জঙ্কথ", "jngkrf": "জঙ্কড়", "jngkrff": "জঙ্কঢ়", "jngghrf": "জঙ্ঘড়", "jngghrff": "জঙ্ঘঢ়",
-																					"jngfkth": "জঙ্কথ", "jngfkrf": "জঙ্কড়", "jngfkrff": "জঙ্কঢ়", "jngfghrf": "জঙ্ঘড়", "jngfghrff": "জঙ্ঘঢ়",
-		"jnfdfrf": "জণ্ডড়", "jnfdfrff": "জণ্ডঢ়",
-		"jntfrf": "জন্টড়", "jntfrff": "জন্টঢ়", "jndfrf": "জন্ডড়", "jndfrff": "জন্ডঢ়", "jntrf": "জন্তড়", "jntrff": "জন্তঢ়", "jnthrf": "জন্থড়", 
-		"jnstf": "জনস্ট", "jnst": "জনস্ত", "jnsk": "জনস্ক", 
-		"jnthrff": "জন্থঢ়", "jndrf": "জন্দড়", "jndrff": "জন্দঢ়", "jndhrf": "জন্ধড়", "jndhrff": "জন্ধঢ়",
-		"jngksh": "জঙ্কশ", "jngfksh": "জঙ্কশ",
-
-
-	"tft": "টত", "dfd": "ডদ", 
-		
-	"nft": "ণত", "nfd": "ণদ", 
-	"lt": "লত", "sft": "ষত", 
-	"nfth": "ণথ", "nfdh": "ণধ", 
-	"sfth": "ষথ",
-	"ktff": "কঠ", "ptff": "পঠ", "ltff": "লঠ", "stff": "সঠ", 
-	"dfdff": "ডঢ", 
-	"ndff": "নঢ", 
-	"ktfrf": "ক্টড়", "ktfrff": "ক্টঢ়", "kth": "কথ", "ktrf": "ক্তড়", "ktrff": "ক্তঢ়", "krf": "কড়", "krff": "কঢ়", "khrf": "খড়", "khrff": "খঢ়", "gggh": "জ্ঞঘ", "gdff": "গঢ", "gdhrf": "গ্ধড়", 
-	"gdhrff": "গ্ধঢ়", "grf": "গড়", "grff": "গঢ়", "ghrf": "ঘড়", "ghrff": "ঘঢ়", 
-	"ngkth": "ঙ্কথ", "ngkrf": "ঙ্কড়", "ngkrff": "ঙ্কঢ়", "ngghrf": "ঙ্ঘড়", "ngghrff": "ঙ্ঘঢ়", 
-	"cchrf": "চ্ছড়", "cchrff": "চ্ছঢ়", 
-	"ngfkth": "ঙ্কথ", "ngfkrf": "ঙ্কড়", "ngfkrff": "ঙ্কঢ়", "ngfghrf": "ঙ্ঘড়", "ngfghrff": "ঙ্ঘঢ়",
-	"tfrf": "টড়", "tfrff": "টঢ়", "dfrf": "ডড়", "dfrff": "ডঢ়", "rfgh": "ড়ঘ", "dffrf": "ঢড়", "dffrff": "ঢঢ়", 
-	"nfdfrf": "ণ্ডড়", "nfdfrff": "ণ্ডঢ়", 
-	"trf": "তড়", "trff": "তঢ়", "thrf": "থড়", "thrff": "থঢ়", 
-	"dvrf": "দ্ভড়", "dvrff": "দ্ভঢ়", "drf": "দড়", "drff": "দঢ়", "dhrf": "ধড়", "dhrff": "ধঢ়", 
-	"ntfrf": "ন্টড়", "ntfrff": "ন্টঢ়", "ndfrf": "ন্ডড়", "ndfrff": "ন্ডঢ়", "ntrf": "ন্তড়", "ntrff": "ন্তঢ়", "nthrf": "ন্থড়", 
-	"nstf": "নস্ট", "nst": "নস্ত", "nsk": "নস্ক", 
-	"nthrff": "ন্থঢ়", "ndrf": "ন্দড়", "ndrff": "ন্দঢ়", "ndhrf": "ন্ধড়", "ndhrff": "ন্ধঢ়", 
-	"pth": "পথ", "pph": "পফ", "prf": "পড়", "prff": "পঢ়", "phrf": "ফড়", "phrff": "ফঢ়", "bjh": "বঝ", "brf": "বড়", "brff": "বঢ়", 
-	"mpl": "মপ্ল", 
-	"vrf": "ভড়", "vrff": "ভঢ়", "mprf": "ম্পড়", "mprff": "ম্পঢ়", "mbrf": "ম্বড়", "mbrff": "ম্বঢ়", "mvrf": "ম্ভড়", "mvrff": "ম্ভঢ়", "mrf": "মড়", "mrff": "মঢ়", "lkh": "লখ", "lgh": "লঘ", "shrf": "শড়", "shrff": "শঢ়", "sfkh": "ষখ",
-	"sfkrf": "ষ্কড়", "sfkrff": "ষ্কঢ়", "sftfrf": "ষ্টড়", "sftfrff": "ষ্টঢ়", "sfprf": "ষ্পড়", "sfprff": "ষ্পঢ়", "skrf": "স্কড়", "skrff": "স্কঢ়", "stfrf": "স্টড়", "stfrff": "স্টঢ়", "strf": "স্তড়", "strff": "স্তঢ়", "sprf": "স্পড়", "sprff": "স্পঢ়", 
-	"srf": "সড়", "srff": "সঢ়", "hrf": "হড়", "hrff": "হঢ়", "ldh": "লধ", 
-	"ngksh": "ঙ্কশ", "tfth": "টথ", "dfdh": "ডধ", "lth": "লথ",
-	"ngfksh": "ঙ্কশ",
-	"lks": "ল্কস", 
-	"kkf": "কক্ষ", "lkf": "লক্ষ", "sfkf": "ষক্ষ", "skf": "সক্ষ", "kkkh": "কক্ষ", "lkkh": "লক্ষ", "sfkkh": "ষক্ষ", "skkh": "সক্ষ", "kksf": "কক্ষ", "lksf": "লক্ষ", "sfksf": "ষক্ষ", "sksf": "সক্ষ",
-	"yr": "য়র",
-    "gnj": "গঞ্জ", "pnj": "পঞ্জ", "mnj": "মঞ্জ", "snj": "সঞ্জ",
-    "gndf": "গন্ড", "mndf": "মন্ড",
-    "tnt": "তন্ত", "tntr": "তন্ত্র", "mnt": "মন্ত", "mntr": "মন্ত্র", "snt": "সন্ত", "sntr": "সন্ত্র", "hnt": "হন্ত",
-    "tnd": "তন্দ", "nnd": "নন্দ", "mnd": "মন্দ", "snd": "সন্দ",
-    "gndh": "গন্ধ", "gndhz": "গন্ধ্য", "sndh": "সন্ধ", "sndhz": "সন্ধ্য",
+# Conjunct consonant mappings (juktoborno) - complete mapping from mim file
+JUKTOBORNO_MAP: Dict[Tuple[int, int], Tuple[str, int]] = {
+    # Format: (PCID, CID) -> (character, new_CID)
+    (1, 1): ("ক্ক", 38), (1, 2): ("ক্ষ", 39), (1, 11): ("ক্ট", 40), (1, 16): ("ক্ত", 41),
+    (1, 23): ("ক্ব", 42), (1, 25): ("ক্ম", 43), (1, 30): ("ক্ষ", 39), (1, 28): ("ক্ল", 44), (1, 31): ("ক্স", 45),
+    
+    (3, 3): ("জ্ঞ", 65), (3, 15): ("গ্‌ণ", 46), (3, 19): ("গ্ধ", 47), (3, 20): ("গ্ন", 48),
+    (3, 23): ("গ্‌ব", 49), (3, 25): ("গ্ম", 50), (3, 28): ("গ্ল", 51),
+    
+    (4, 20): ("ঘ্ন", 52),
+    
+    (5, 1): ("ঙ্ক", 53), (5, 2): ("ঙ্খ", 54), (5, 3): ("ঙ্গ", 55), (5, 4): ("ঙ্ঘ", 56),
+    (5, 25): ("ঙ্ম", 57), (5, 39): ("ঙ্ক্ষ", 58),
+    
+    (6, 6): ("চ্চ", 59), (6, 7): ("চ্ছ", 60), (6, 10): ("চ্ঞ", 61), (6, 23): ("চ্ব", 62),
+    
+    (8, 8): ("জ্জ", 63), (8, 9): ("জ্ঝ", 64), (8, 10): ("জ্ঞ", 65), (8, 23): ("জ্ব", 66),
+    
+    (10, 6): ("ঞ্চ", 67), (10, 7): ("ঞ্ছ", 68), (10, 8): ("ঞ্জ", 69), (10, 9): ("ঞ্ঝ", 70),
+    
+    (11, 11): ("ট্ট", 71), (11, 23): ("ট্ব", 72), (11, 25): ("ট্ম", 73),
+    
+    (13, 13): ("ড্ড", 74), (13, 23): ("ড্ব", 75),
+    
+    (15, 11): ("ণ্ট", 77), (15, 12): ("ণ্ঠ", 78), (15, 15): ("ণ্ণ", 81),
+    (15, 13): ("ণ্ড", 79), (15, 14): ("ণ্ঢ", 80), (15, 20): ("ণ্ণ", 81), (15, 23): ("ণ্ব", 82), (15, 25): ("ণ্ম", 83),
+    
+    (16, 11): ("ট্ট", 71), (16, 16): ("ত্ত", 84), (16, 17): ("ত্থ", 85), (16, 20): ("ত্ন", 86),
+    (16, 23): ("ত্ব", 87), (16, 25): ("ত্ম", 88),
+    
+    (17, 23): ("থ্ব", 89),
+    
+    (18, 3): ("দ্‌গ", 90), (18, 4): ("দ্‌ঘ", 91), (18, 13): ("ড্ড", 74), (18, 18): ("দ্দ", 92),
+    (18, 19): ("দ্ধ", 93), (18, 23): ("দ্ব", 94), (18, 24): ("দ্ভ", 95), (18, 25): ("দ্ম", 96),
+    
+    (19, 20): ("ধ্ন", 97), (19, 23): ("ধ্ব", 98), (19, 25): ("ধ্ম", 99),
+    
+    (20, 6): ("ঞ্চ", 67), (20, 7): ("ঞ্ছ", 68), (20, 8): ("ঞ্জ", 69), (20, 9): ("ঞ্ঝ", 70),
+    (20, 11): ("ন্ট", 100), (20, 12): ("ন্ঠ", 101), (20, 13): ("ন্ড", 102),
+    (20, 15): ("ণ্ণ", 81), (20, 16): ("ন্ত", 103), (20, 17): ("ন্থ", 104), (20, 18): ("ন্দ", 105),
+    (20, 19): ("ন্ধ", 106), (20, 20): ("ন্ন", 107), (20, 23): ("ন্ব", 108), (20, 25): ("ন্ম", 109), (20, 31): ("ন্স", 110),
+    
+    (21, 11): ("প্ট", 111), (21, 16): ("প্ত", 112), (21, 20): ("প্ন", 113), (21, 21): ("প্প", 114),
+    (21, 28): ("প্ল", 115), (21, 31): ("প্স", 116),
+    
+    (22, 28): ("ফ্ল", 117),
+    
+    (23, 8): ("ব্জ", 118), (23, 18): ("ব্দ", 119), (23, 19): ("ব্ধ", 120), (23, 23): ("ব্ব", 121), (23, 28): ("ব্ল", 122),
+    
+    (24, 23): ("ভ্ব", 123), (24, 28): ("ভ্ল", 124),
+    
+    (25, 20): ("ম্ন", 125), (25, 21): ("ম্প", 126), (25, 22): ("ম্ফ", 127), (25, 23): ("ম্ব", 128),
+    (25, 24): ("ম্ভ", 129), (25, 25): ("ম্ম", 130), (25, 28): ("ম্ল", 131),
+    
+    (28, 1): ("ল্ক", 132), (28, 3): ("ল্গ", 133), (28, 11): ("ল্ট", 134), (28, 13): ("ল্ড", 135),
+    (28, 21): ("ল্প", 136), (28, 22): ("ল্ফ", 137), (28, 23): ("ল্ব", 138), (28, 24): ("ল্‌ভ", 139),
+    (28, 25): ("ল্ম", 140), (28, 28): ("ল্ল", 141),
+    
+    (29, 6): ("শ্চ", 142), (29, 7): ("শ্ছ", 143), (29, 20): ("শ্ন", 144), (29, 23): ("শ্ব", 145),
+    (29, 25): ("শ্ম", 146), (29, 28): ("শ্ল", 147),
+    
+    (30, 1): ("ষ্ক", 148), (30, 11): ("ষ্ট", 149), (30, 12): ("ষ্ঠ", 150), (30, 15): ("ষ্ণ", 151),
+    (30, 20): ("ষ্ণ", 151), (30, 21): ("ষ্প", 152), (30, 22): ("ষ্ফ", 153), (30, 23): ("ষ্ব", 154), (30, 25): ("ষ্ম", 155),
+    
+    (31, 1): ("স্ক", 156), (31, 2): ("স্খ", 157), (31, 11): ("স্ট", 158), (31, 16): ("স্ত", 159),
+    (31, 17): ("স্থ", 160), (31, 20): ("স্ন", 161), (31, 21): ("স্প", 162), (31, 22): ("স্ফ", 163),
+    (31, 23): ("স্ব", 164), (31, 25): ("স্ম", 165), (31, 28): ("স্ল", 166),
+    
+    (32, 15): ("হ্ণ", 168), (32, 20): ("হ্ন", 167), (32, 23): ("হ্ব", 169), (32, 25): ("হ্ম", 170), (32, 28): ("হ্ল", 171),
+    
+    (34, 3): ("ড়্‌গ", 76),
+    
+    (39, 15): ("ক্ষ্ণ", 172), (39, 20): ("ক্ষ্ণ", 172), (39, 23): ("ক্ষ্ব", 173), (39, 25): ("ক্ষ্ম", 174),
+    
+    (27, 26): ("র‍্য", 37),  # র + য = র‍্য
 }
 
-NG: Dict[str, str] = {
-    "ng": "ং", "gng": "গং", "ghng": "ঘং", "cng": "চং", "jng": "জং", "nng": "নং", "nfng": "ণং", "tng": "তং", "dhng": "ধং", "png": "পং", "mng": "মং", "shng": "শং", "sfng": "ষং", "sng": "সং", "hng": "হং", "kfng": "ক্ষং", "kkhng": "ক্ষং", "ksfng": "ক্ষং",
-	"ngo": "ঙ", "nga": "ঙা", "ngi": "ঙি", "ngii": "ঙী", "ngu": "ঙু", "nguff": "ঙ‌ু", "nguu": "ঙূ", "nguuff": "ঙ‌ূ", "ngq": "ঙৃ", "ngqff": "ঙ‌ৃ", "nge": "ঙে", "ngoi": "ঙৈ",     
-	"ngw": "ঙো", "ngou": "ঙৌ", "ngae": "ঙ্যা",
-	"ngof": "ঙঅ", "ngaf": "ঙআ", "ngif": "ঙই", "ngiif": "ঙঈ", "nguf": "ঙউ", "nguuf": "ঙঊ", "ngqf": "ঙঋ", "ngef": "ঙএ", "ngoif": "ঙই",     
-	"ngwf": "ঙও", "ngouf": "ঙউ", "ngaef": "ঙঅ্যা",
-
-	"gngo": "গঙ", "gnga": "গঙা", "gngi": "গঙি", "gngii": "গঙী", "gngu": "গঙু", "gnguff": "গঙ‌ু", "gnguu": "গঙূ", "gnguuff": "গঙ‌ূ", "gngq": "গঙৃ", "gngqff": "গঙ‌ৃ", "gnge": "গঙে", "gngoi": "গঙৈ",     
-	"gngw": "গঙো", "gngou": "গঙৌ", "gngae": "গঙ্যা",
-	"gngof": "গঙঅ", "gngaf": "গঙআ", "gngif": "গঙই", "gngiif": "গঙঈ", "gnguf": "গঙউ", "gnguuf": "গঙঊ", "gngqf": "গঙঋ", "gngef": "গঙএ", "gngoif": "গঙই",     
-	"gngwf": "গঙও", "gngouf": "গঙউ", "gngaef": "গঙঅ্যা",
-
-	"ghngo": "ঘঙ", "ghnga": "ঘঙা", "ghngi": "ঘঙি", "ghngii": "ঘঙী", "ghngu": "ঘঙু", "ghnguff": "ঘঙ‌ু", "ghnguu": "ঘঙূ", "ghnguuff": "ঘঙ‌ূ", "ghngq": "ঘঙৃ", "ghngqff": "ঘঙ‌ৃ", "ghnge": "ঘঙে", "ghngoi": "ঘঙৈ",     
-	"ghngw": "ঘঙো", "ghngou": "ঘঙৌ", "ghngae": "ঘঙ্যা",
-	"ghngof": "ঘঙঅ", "ghngaf": "ঘঙআ", "ghngif": "ঘঙই", "ghngiif": "ঘঙঈ", "ghnguf": "ঘঙউ", "ghnguuf": "ঘঙঊ", "ghngqf": "ঘঙঋ", "ghngef": "ঘঙএ", "ghngoif": "ঘঙই",     
-	"ghngwf": "ঘঙও", "ghngouf": "ঘঙউ", "ghngaef": "ঘঙঅ্যা",
-
-	"cngo": "চঙ", "cnga": "চঙা", "cngi": "চঙি", "cngii": "চঙী", "cngu": "চঙু", "cnguff": "চঙ‌ু", "cnguu": "চঙূ", "cnguuff": "চঙ‌ূ", "cngq": "চঙৃ", "cngqff": "চঙ‌ৃ", "cnge": "চঙে", "cngoi": "চঙৈ",     
-	"cngw": "চঙো", "cngou": "চঙৌ", "cngae": "চঙ্যা",
-	"cngof": "চঙঅ", "cngaf": "চঙআ", "cngif": "চঙই", "cngiif": "চঙঈ", "cnguf": "চঙউ", "cnguuf": "চঙঊ", "cngqf": "চঙঋ", "cngef": "চঙএ", "cngoif": "চঙই",     
-	"cngwf": "চঙও", "cngouf": "চঙউ", "cngaef": "চঙঅ্যা",
-
-	"jngo": "জঙ", "jnga": "জঙা", "jngi": "জঙি", "jngii": "জঙী", "jngu": "জঙু", "jnguff": "জঙ‌ু", "jnguu": "জঙূ", "jnguuff": "জঙ‌ূ", "jngq": "জঙৃ", "jngqff": "জঙ‌ৃ", "jnge": "জঙে", "jngoi": "জঙৈ",     
-	"jngw": "জঙো", "jngou": "জঙৌ", "jngae": "জঙ্যা",
-	"jngof": "জঙঅ", "jngaf": "জঙআ", "jngif": "জঙই", "jngiif": "জঙঈ", "jnguf": "জঙউ", "jnguuf": "জঙঊ", "jngqf": "জঙঋ", "jngef": "জঙএ", "jngoif": "জঙই",     
-	"jngwf": "জঙও", "jngouf": "জঙউ", "jngaef": "জঙঅ্যা",
-
-	"nngo": "নঙ", "nnga": "নঙা", "nngi": "নঙি", "nngii": "নঙী", "nngu": "নঙু", "nnguff": "নঙ‌ু", "nnguu": "নঙূ", "nnguuff": "নঙ‌ূ", "nngq": "নঙৃ", "nngqff": "নঙ‌ৃ", "nnge": "নঙে", "nngoi": "নঙৈ",     
-	"nngw": "নঙো", "nngou": "নঙৌ", "nngae": "নঙ্যা",
-	"nngof": "নঙঅ", "nngaf": "নঙআ", "nngif": "নঙই", "nngiif": "নঙঈ", "nnguf": "নঙউ", "nnguuf": "নঙঊ", "nngqf": "নঙঋ", "nngef": "নঙএ", "nngoif": "নঙই",     
-	"nngwf": "নঙও", "nngouf": "নঙউ", "nngaef": "নঙঅ্যা",
-
-	"nfngo": "ণঙ", "nfnga": "ণঙা", "nfngi": "ণঙি", "nfngii": "ণঙী", "nfngu": "ণঙু", "nfnguff": "ণঙ‌ু", "nfnguu": "ণঙূ", "nfnguuff": "ণঙ‌ূ", "nfngq": "ণঙৃ", "nfngqff": "ণঙ‌ৃ", "nfnge": "ণঙে", "nfngoi": "ণঙৈ",     
-	"nfngw": "ণঙো", "nfngou": "ণঙৌ", "nfngae": "ণঙ্যা",
-	"nfngof": "ণঙঅ", "nfngaf": "ণঙআ", "nfngif": "ণঙই", "nfngiif": "ণঙঈ", "nfnguf": "ণঙউ", "nfnguuf": "ণঙঊ", "nfngqf": "ণঙঋ", "nfngef": "ণঙএ", "nfngoif": "ণঙই",     
-	"nfngwf": "ণঙও", "nfngouf": "ণঙউ", "nfngaef": "ণঙঅ্যা",
-
-	"tngo": "তঙ", "tnga": "তঙা", "tngi": "তঙি", "tngii": "তঙী", "tngu": "তঙু", "tnguff": "তঙ‌ু", "tnguu": "তঙূ", "tnguuff": "তঙ‌ূ", "tngq": "তঙৃ", "tngqff": "তঙ‌ৃ", "tnge": "তঙে", "tngoi": "তঙৈ",     
-	"tngw": "তঙো", "tngou": "তঙৌ", "tngae": "তঙ্যা",
-	"tngof": "তঙঅ", "tngaf": "তঙআ", "tngif": "তঙই", "tngiif": "তঙঈ", "tnguf": "তঙউ", "tnguuf": "তঙঊ", "tngqf": "তঙঋ", "tngef": "তঙএ", "tngoif": "তঙই",     
-	"tngwf": "তঙও", "tngouf": "তঙউ", "tngaef": "তঙঅ্যা",
-
-	"dhngo": "ধঙ", "dhnga": "ধঙা", "dhngi": "ধঙি", "dhngii": "ধঙী", "dhngu": "ধঙু", "dhnguff": "ধঙ‌ু", "dhnguu": "ধঙূ", "dhnguuff": "ধঙ‌ূ", "dhngq": "ধঙৃ", "dhngqff": "ধঙ‌ৃ", "dhnge": "ধঙে", "dhngoi": "ধঙৈ",     
-	"dhngw": "ধঙো", "dhngou": "ধঙৌ", "dhngae": "ধঙ্যা",
-	"dhngof": "ধঙঅ", "dhngaf": "ধঙআ", "dhngif": "ধঙই", "dhngiif": "ধঙঈ", "dhnguf": "ধঙউ", "dhnguuf": "ধঙঊ", "dhngqf": "ধঙঋ", "dhngef": "ধঙএ", "dhngoif": "ধঙই",     
-	"dhngwf": "ধঙও", "dhngouf": "ধঙউ", "dhngaef": "ধঙঅ্যা",
-
-	"pngo": "পঙ", "pnga": "পঙা", "pngi": "পঙি", "pngii": "পঙী", "pngu": "পঙু", "pnguff": "পঙ‌ু", "pnguu": "পঙূ", "pnguuff": "পঙ‌ূ", "pngq": "পঙৃ", "pngqff": "পঙ‌ৃ", "pnge": "পঙে", "pngoi": "পঙৈ",     
-	"pngw": "পঙো", "pngou": "পঙৌ", "pngae": "পঙ্যা",
-	"pngof": "পঙঅ", "pngaf": "পঙআ", "pngif": "পঙই", "pngiif": "পঙঈ", "pnguf": "পঙউ", "pnguuf": "পঙঊ", "pngqf": "পঙঋ", "pngef": "পঙএ", "pngoif": "পঙই",     
-	"pngwf": "পঙও", "pngouf": "পঙউ", "pngaef": "পঙঅ্যা",
-
-	"mngo": "মঙ", "mnga": "মঙা", "mngi": "মঙি", "mngii": "মঙী", "mngu": "মঙু", "mnguff": "মঙ‌ু", "mnguu": "মঙূ", "mnguuff": "মঙ‌ূ", "mngq": "মঙৃ", "mngqff": "মঙ‌ৃ", "mnge": "মঙে", "mngoi": "মঙৈ",     
-	"mngw": "মঙো", "mngou": "মঙৌ", "mngae": "মঙ্যা",
-	"mngof": "মঙঅ", "mngaf": "মঙআ", "mngif": "মঙই", "mngiif": "মঙঈ", "mnguf": "মঙউ", "mnguuf": "মঙঊ", "mngqf": "মঙঋ", "mngef": "মঙএ", "mngoif": "মঙই",     
-	"mngwf": "মঙও", "mngouf": "মঙউ", "mngaef": "মঙঅ্যা",
-
-	"shngo": "শঙ", "shnga": "শঙা", "shngi": "শঙি", "shngii": "শঙী", "shngu": "শঙু", "shnguff": "শঙ‌ু", "shnguu": "শঙূ", "shnguuff": "শঙ‌ূ", "shngq": "শঙৃ", "shngqff": "শঙ‌ৃ", "shnge": "শঙে", "shngoi": "শঙৈ",     
-	"shngw": "শঙো", "shngou": "শঙৌ", "shngae": "শঙ্যা",
-	"shngof": "শঙঅ", "shngaf": "শঙআ", "shngif": "শঙই", "shngiif": "শঙঈ", "shnguf": "শঙউ", "shnguuf": "শঙঊ", "shngqf": "শঙঋ", "shngef": "শঙএ", "shngoif": "শঙই",     
-	"shngwf": "শঙও", "shngouf": "শঙউ", "shngaef": "শঙঅ্যা",
-
-	"sfngo": "ষঙ", "sfnga": "ষঙা", "sfngi": "ষঙি", "sfngii": "ষঙী", "sfngu": "ষঙু", "sfnguff": "ষঙ‌ু", "sfnguu": "ষঙূ", "sfnguuff": "ষঙ‌ূ", "sfngq": "ষঙৃ", "sfngqff": "ষঙ‌ৃ", "sfnge": "ষঙে", "sfngoi": "ষঙৈ",     
-	"sfngw": "ষঙো", "sfngou": "ষঙৌ", "sfngae": "ষঙ্যা",
-	"sfngof": "ষঙঅ", "sfngaf": "ষঙআ", "sfngif": "ষঙই", "sfngiif": "ষঙঈ", "sfnguf": "ষঙউ", "sfnguuf": "ষঙঊ", "sfngqf": "ষঙঋ", "sfngef": "ষঙএ", "sfngoif": "ষঙই",     
-	"sfngwf": "ষঙও", "sfngouf": "ষঙউ", "sfngaef": "ষঙঅ্যা",
-
-	"sngo": "সঙ", "snga": "সঙা", "sngi": "সঙি", "sngii": "সঙী", "sngu": "সঙু", "snguff": "সঙ‌ু", "snguu": "সঙূ", "snguuff": "সঙ‌ূ", "sngq": "সঙৃ", "sngqff": "সঙ‌ৃ", "snge": "সঙে", "sngoi": "সঙৈ",     
-	"sngw": "সঙো", "sngou": "সঙৌ", "sngae": "সঙ্যা",
-	"sngof": "সঙঅ", "sngaf": "সঙআ", "sngif": "সঙই", "sngiif": "সঙঈ", "snguf": "সঙউ", "snguuf": "সঙঊ", "sngqf": "সঙঋ", "sngef": "সঙএ", "sngoif": "সঙই",     
-	"sngwf": "সঙও", "sngouf": "সঙউ", "sngaef": "সঙঅ্যা",
-
-	"hngo": "হঙ", "hnga": "হঙা", "hngi": "হঙি", "hngii": "হঙী", "hngu": "হঙু", "hnguff": "হঙ‌ু", "hnguu": "হঙূ", "hnguuff": "হঙ‌ূ", "hngq": "হঙৃ", "hngqff": "হঙ‌ৃ", "hnge": "হঙে", "hngoi": "হঙৈ",     
-	"hngw": "হঙো", "hngou": "হঙৌ", "hngae": "হঙ্যা",
-	"hngof": "হঙঅ", "hngaf": "হঙআ", "hngif": "হঙই", "hngiif": "হঙঈ", "hnguf": "হঙউ", "hnguuf": "হঙঊ", "hngqf": "হঙঋ", "hngef": "হঙএ", "hngoif": "হঙই",     
-	"hngwf": "হঙও", "hngouf": "হঙউ", "hngaef": "হঙঅ্যা",
-
-	"kfngo": "ক্ষঙ", "kfnga": "ক্ষঙা", "kfngi": "ক্ষঙি", "kfngii": "ক্ষঙী", "kfngu": "ক্ষঙু", "kfnguff": "ক্ষঙ‌ু", "kfnguu": "ক্ষঙূ", "kfnguuff": "ক্ষঙ‌ূ", "kfngq": "ক্ষঙৃ", "kfngqff": "ক্ষঙ‌ৃ", "kfnge": "ক্ষঙে", "kfngoi": "ক্ষঙৈ",     
-	"kfngw": "ক্ষঙো", "kfngou": "ক্ষঙৌ", "kfngae": "ক্ষঙ্যা",
-	"kfngof": "ক্ষঙঅ", "kfngaf": "ক্ষঙআ", "kfngif": "ক্ষঙই", "kfngiif": "ক্ষঙঈ", "kfnguf": "ক্ষঙউ", "kfnguuf": "ক্ষঙঊ", "kfngqf": "ক্ষঙঋ", "kfngef": "ক্ষঙএ", "kfngoif": "ক্ষঙই",     
-	"kfngwf": "ক্ষঙও", "kfngouf": "ক্ষঙউ", "kfngaef": "ক্ষঙঅ্যা",
-
-	"kkhngo": "ক্ষঙ", "kkhnga": "ক্ষঙা", "kkhngi": "ক্ষঙি", "kkhngii": "ক্ষঙী", "kkhngu": "ক্ষঙু", "kkhnguff": "ক্ষঙ‌ু", "kkhnguu": "ক্ষঙূ", "kkhnguuff": "ক্ষঙ‌ূ", "kkhngq": "ক্ষঙৃ", "kkhngqff": "ক্ষঙ‌ৃ", "kkhnge": "ক্ষঙে", "kkhngoi": "ক্ষঙৈ",     
-	"kkhngw": "ক্ষঙো", "kkhngou": "ক্ষঙৌ", "kkhngae": "ক্ষঙ্যা",
-	"kkhngof": "ক্ষঙঅ", "kkhngaf": "ক্ষঙআ", "kkhngif": "ক্ষঙই", "kkhngiif": "ক্ষঙঈ", "kkhnguf": "ক্ষঙউ", "kkhnguuf": "ক্ষঙঊ", "kkhngqf": "ক্ষঙঋ", "kkhngef": "ক্ষঙএ", "kkhngoif": "ক্ষঙই",     
-	"kkhngwf": "ক্ষঙও", "kkhngouf": "ক্ষঙউ", "kkhngaef": "ক্ষঙঅ্যা",
-
-	"ksfngo": "ক্ষঙ", "ksfnga": "ক্ষঙা", "ksfngi": "ক্ষঙি", "ksfngii": "ক্ষঙী", "ksfngu": "ক্ষঙু", "ksfnguff": "ক্ষঙ‌ু", "ksfnguu": "ক্ষঙূ", "ksfnguuff": "ক্ষঙ‌ূ", "ksfngq": "ক্ষঙৃ", "ksfngqff": "ক্ষঙ‌ৃ", "ksfnge": "ক্ষঙে", "ksfngoi": "ক্ষঙৈ",     
-	"ksfngw": "ক্ষঙো", "ksfngou": "ক্ষঙৌ", "ksfngae": "ক্ষঙ্যা",
-	"ksfngof": "ক্ষঙঅ", "ksfngaf": "ক্ষঙআ", "ksfngif": "ক্ষঙই", "ksfngiif": "ক্ষঙঈ", "ksfnguf": "ক্ষঙউ", "ksfnguuf": "ক্ষঙঊ", "ksfngqf": "ক্ষঙঋ", "ksfngef": "ক্ষঙএ", "ksfngoif": "ক্ষঙই",     
-	"ksfngwf": "ক্ষঙও", "ksfngouf": "ক্ষঙউ", "ksfngaef": "ক্ষঙঅ্যা",
-}
-
-REPH: Dict[str, str] = {
-    "rr": "র্", "r": "র",
-}
-
-PHOLA: Dict[str, str] = {
-    "r": "র", "z": "য",
+PHOLA: Dict[str, int] = {
+    "r": 27,  # র-ফলা
+    "z": 26,  # য-ফলা
 }
 
 KAR: Dict[str, str] = {
-    "o": "", "of": "অ",
-	"oof": "ঽ",
-	"a": "া", "af": "আ",
-	"i": "ি", "if": "ই",
-	"ii": "ী", "iif": "ঈ",
-	"u": "ু", "uf": "উ",
-	"uu": "ূ", "uuf": "ঊ",
-	"q": "ৃ", "qf": "ঋ",
-	"e": "ে", "ef": "এ",
-	"oi": "ৈ", "oif": "ই",
-	"w": "ো", "wf": "ও",     
-	"ou": "ৌ", "ouf": "উ",
-	"ae": "্যা", "aef": "অ্যা",
-	"uff": "‌ু", "uuff": "‌ূ", "qff": "‌ৃ", 
-
-	"we": "োয়ে", "wef": "ওয়ে",
-	"waf": "ওয়া", "wa": "োয়া",
-	"wae": "ওয়্যা",
-
-	"oo": "ং",
+    "o": "", "of": "অ", "oof": "ঽ", "a": "া", "af": "আ", "i": "ি", "if": "ই",
+    "ii": "ী", "iif": "ঈ", "u": "ু", "uf": "উ", "uu": "ূ", "uuf": "ঊ",
+    "q": "ৃ", "qf": "ঋ", "e": "ে", "ef": "এ", "wi": "ৈ", "wif": "োই",
+    "w": "ো", "wf": "ও", "wu": "ৌ", "wuf": "োউ", "ae": "্যা", "aef": "অ্যা",
+    "uff": "‌ু", "uuff": "‌ূ", "qff": "‌ৃ", "we": "োয়ে", "wef": "ওয়ে",
+    "waf": "ওয়া", "wa": "োয়া", "wae": "ওয়্যা", "oo": "ঃ",
 }
 
 ONGKO: Dict[str, str] = {
-    ".1": ".১", ".2": ".২", ".3": ".৩", ".4": ".৪", ".5": ".৫", ".6": ".৬", ".7": ".৭", ".8": ".৮", ".9": ".৯", ".0": ".০",
-    "1": "১", "2": "২", "3": "৩", "4": "৪", "5": "৫", "6": "৬", "7": "৭", "8": "৮", "9": "৯", "0": "০",
-	"A": "a", "B": "b", "C": "c", "D": "d", "E": "e", "F": "f", "G": "g", "H": "h", "I": "i", "J": "j", "K": "k", "L": "l", "M": "m",
-    "N": "n", "O": "o", "P": "p", "Q": "q", "R": "r", "S": "s", "T": "t", "U": "u", "V": "v", "W": "w", "X": "x", "Y": "y", "Z": "z",
+    ".1": ".१", ".2": ".२", ".3": ".३", ".4": ".४", ".5": ".५", ".6": ".६", 
+    ".7": ".७", ".8": ".८", ".9": ".९", ".0": ".०",
+    "1": "१", "2": "२", "3": "३", "4": "४", "5": "५", "6": "६", "7": "७", "8": "८", "9": "९", "0": "०",
+    "1.": "१.", "2.": "२.", "3.": "३.", "4.": "४.", "5.": "५.", "6.": "६.",
+    "7.": "७.", "8.": "८.", "9.": "९.", "0.": "०.",
+    "1..": "१।", "2..": "२।", "3..": "३।", "4..": "४।", "5..": "५।", "6..": "६।",
+    "7..": "७।", "8..": "८।", "9..": "९।", "0..": "०।",
 }
 
 DIACRITIC: Dict[str, str] = {
-    "qq": "্", "xx": "্‌", "t/": "ৎ", "x": "ঃ", "/": "ঁ", "//": "/", 
-	"`": "`", "``": "‌", "```": "``",
-	"~": "~", "~~": "‍", "~~~": "~~",
+    "qq": "্", "xx": "্‌", "x": "ং", "`": "`", "``": "‌", "```": "``", "``f": "‍",
 }
 
 BIRAM: Dict[str, str] = {
-    ".": "।", "...": "...", "..": ".", "$": "৳", "$f": "₹", ",,,": ",,", ".f": "॥", ".ff": "৺", 
-	"+": "+", "-": "-", "=": "=", "+f": "×", "-f": "÷", "=f": "≠", "$$": "$",
+    ".": "।", "...": "...", "..": ".", "$": "৳", "$f": "₹", ",,,": ",,", 
+    ".f": "॥", ".ff": "৺", "+": "+", "-": "-", "+f": "×", "-f": "÷", "$$": "$", "=": "=", "=f": "≠",
 }
 
 PRITHAYOK: Dict[str, str] = {
-    ";": "", ";;": ";",
+    ";": "",
 }
 
-# The following AE has an AE kar with a preceding joiner
 AE: Dict[str, str] = {
-    "ae": "‍্যা",
+    "ae": "‍్్యా",
 }
 
-# --------------------------
-# State machine configuration
-# --------------------------
+SLICER: Dict[str, str] = {
+    "/": "/",
+}
 
+SLICER2: Dict[str, str] = {
+    "//": "/",
+}
+
+SLICER3: Dict[str, str] = {
+    "///": "//",
+}
+
+# All groups combined
+GROUP_MAPS: Dict[str, Dict] = {
+    "shor": SHOR,
+    "fkar": FKAR,
+    "diacritic": DIACRITIC,
+    "slicer": SLICER,
+    "slicer2": SLICER2,
+    "slicer3": SLICER3,
+    "prithayok": PRITHAYOK,
+    "ongko": ONGKO,
+    "biram": BIRAM,
+    "byanjon": {k: v[0] for k, v in BYANJON.items()},  # Extract just characters for basic matching
+    "phola": {str(k): str(v) for k, v in PHOLA.items()},  # Simple string map
+    "kar": KAR,
+}
+
+# State names
 INIT = "init"
 SHOR_STATE = "shor-state"
 REPH_STATE = "reph-state"
 BYANJON_STATE = "byanjon-state"
+JUKTOBORNO_STATE = "juktoborno-state"
+RR_STATE = "rr-state"
 
-GROUP_MAPS: Dict[str, Dict[str, str]] = {
-    "shor": SHOR,
-    "fkar": FKAR,
-    "byanjon": BYANJON,
-    "juktoborno": JUKTOBORNO,
-    "ng": NG,
-    "reph": REPH,
-    "phola": PHOLA,
-    "kar": KAR,
-    "ongko": ONGKO,
-    "diacritic": DIACRITIC,
-    "biram": BIRAM,
-    "prithayok": PRITHAYOK,
-    "ae": AE,
+# Precompute max key length per group
+MAXLEN_PER_GROUP: Dict[str, int] = {
+    g: max((len(k) for k in m.keys()), default=0) 
+    for g, m in GROUP_MAPS.items()
 }
 
-# Group order per state (priority used when same-length matches)
-STATE_GROUP_ORDER: Dict[str, List[str]] = {
-    INIT: ["diacritic", "ng", "shor", "fkar", "prithayok", "ongko", "biram", "reph", "juktoborno", "byanjon"],
-    SHOR_STATE: ["diacritic", "ng", "shor", "fkar", "biram", "prithayok", "ongko", "biram", "reph", "juktoborno", "byanjon"],
-    REPH_STATE: ["prithayok", "diacritic", "ng", "ae", "juktoborno", "byanjon", "kar"],
-    BYANJON_STATE: ["diacritic", "ng", "prithayok", "ongko", "biram", "kar", "juktoborno", "phola", "byanjon"],
-}
 
-# Precompute max key length per group for greedy matching
-MAXLEN_PER_GROUP: Dict[str, int] = {g: (max((len(k) for k in m.keys()), default=0)) for g, m in GROUP_MAPS.items()}
+@dataclass
+class InputState:
+    """Context state for the input method"""
+    state: str = INIT
+    output: str = ""
+    
+    # Context variables from MIM
+    CID: int = 0          # Current Consonant ID
+    PCID: int = 0         # Previous Consonant ID
+    P2CID: int = 0        # Previous-Previous Consonant ID
+    ALTERNATE: int = 0    # For disambiguating similar conjuncts
+    SLICER: int = 0       # For slicing conjuncts
+    KAR: int = 0          # For marking special kar
 
 
-def _find_longest(state: str, text: str, i: int) -> Tuple[str, str, str]:
-    """Return (group, key, value) for the longest match allowed in current state. If none, return ("", "", "")."""
-    allowed = STATE_GROUP_ORDER[state]
-    # Determine the max lookahead we need
-    maxlen = 0
-    for g in allowed:
-        maxlen = max(maxlen, MAXLEN_PER_GROUP[g])
+def _find_group_and_key(state: str, text: str, i: int) -> Tuple[str, str, str]:
+    """Find longest matching key in allowed groups for current state"""
+    # Define allowed groups per state (matching MIM state definitions)
+    state_groups = {
+        INIT: ["diacritic", "slicer", "slicer3", "slicer2", "shor", "fkar", "prithayok", "ongko", "biram", "byanjon"],
+        SHOR_STATE: ["diacritic", "slicer", "slicer2", "slicer3", "shor", "fkar", "biram", "prithayok", "ongko", "byanjon"],
+        REPH_STATE: ["prithayok", "diacritic", "slicer", "slicer2", "slicer3", "phola", "kar"],
+        BYANJON_STATE: ["prithayok", "ongko", "biram", "diacritic", "slicer", "slicer2", "slicer3", "kar", "phola", "byanjon"],
+        JUKTOBORNO_STATE: ["slicer", "diacritic", "slicer2", "slicer3", "prithayok", "ongko", "biram", "kar", "phola", "byanjon"],
+        RR_STATE: [],
+    }
+    
+    allowed = state_groups.get(state, [])
+    if not allowed:
+        return ("", "", "")
+    
+    # Try greedy matching from longest to shortest
+    maxlen = max((MAXLEN_PER_GROUP.get(g, 0) for g in allowed), default=0)
     end = min(len(text), i + maxlen)
-    best_group = ""
-    best_key = ""
-    best_val = ""
-    best_len = 0
-
-    # Try lengths from longest to shortest to implement greedy matching
+    
     for L in range(end - i, 0, -1):
         chunk = text[i:i + L]
-        # Check groups by priority
         for g in allowed:
             m = GROUP_MAPS[g]
             if chunk in m:
-                # First match at this length wins due to priority order
                 return (g, chunk, m[chunk])
+    
     return ("", "", "")
 
 
 def _apply_transition(state: str, group: str) -> str:
-    # ---------------------------
-    # INIT state
-    # ---------------------------
+    """Apply state transition based on group matched"""
     if state == INIT:
-        if group in ("diacritic", "ng", "shor", "fkar"):
+        if group in ("diacritic", "slicer", "slicer3", "slicer2", "shor", "fkar", "prithayok", "ongko", "biram"):
             return SHOR_STATE
-        if group in ("prithayok", "ongko", "biram"):
-            return SHOR_STATE
-        if group == "reph":
-            return REPH_STATE
-        if group in ("juktoborno", "byanjon"):
+        if group == "byanjon":
             return BYANJON_STATE
         return INIT
-
-    # ---------------------------
-    # SHOR state
-    # ---------------------------
+    
     if state == SHOR_STATE:
-        if group in ("diacritic", "ng", "fkar"):
+        if group in ("diacritic", "slicer", "slicer2", "slicer3", "shor", "fkar", "biram", "prithayok", "ongko"):
             return SHOR_STATE
-        if group == "shor":
-            return SHOR_STATE
-        if group in ("biram", "prithayok", "ongko"):
-            return SHOR_STATE
-        if group == "reph":
-            return REPH_STATE
-        if group in ("juktoborno", "byanjon"):
+        if group == "byanjon":
             return BYANJON_STATE
         return SHOR_STATE
-
-    # ---------------------------
-    # REPH state
-    # ---------------------------
+    
     if state == REPH_STATE:
-        if group == "prithayok":
+        if group in ("prithayok", "diacritic", "slicer", "slicer2", "slicer3"):
             return SHOR_STATE
-        if group in ("diacritic", "ng"):
+        if group == "kar":
             return SHOR_STATE
-        if group == "ae":
-            return SHOR_STATE
-        if group in ("juktoborno", "byanjon"):
+        if group == "phola":
             return BYANJON_STATE
-        if group in ("kar", "nil"):
-            return SHOR_STATE
         return REPH_STATE
-
-    # ---------------------------
-    # BYANJON state
-    # ---------------------------
+    
     if state == BYANJON_STATE:
-        if group in ("diacritic", "ng", "prithayok", "ongko", "biram", "kar"):
+        if group in ("prithayok", "ongko", "biram", "diacritic", "slicer", "slicer2", "slicer3"):
             return SHOR_STATE
-        if group in ("juktoborno", "phola", "byanjon"):
-            return BYANJON_STATE
+        if group == "kar":
+            return SHOR_STATE
+        if group in ("phola", "byanjon"):
+            return JUKTOBORNO_STATE
         return BYANJON_STATE
-
+    
+    if state == JUKTOBORNO_STATE:
+        if group == "slicer":
+            return JUKTOBORNO_STATE
+        if group in ("diacritic", "slicer2", "slicer3", "prithayok", "ongko", "biram", "kar"):
+            return SHOR_STATE
+        if group in ("phola", "byanjon"):
+            return JUKTOBORNO_STATE
+        return JUKTOBORNO_STATE
+    
+    if state == RR_STATE:
+        return BYANJON_STATE
+    
     return INIT
 
 
 def convert(text: str) -> str:
-    """Convert an ASCII input string to Bengali output using the bn-khipro state machine."""
+    """Convert ASCII input to Bengali using khipro state machine"""
     i = 0
     n = len(text)
-    state = INIT
-    out: List[str] = []
-
+    state_ctx = InputState()
+    
     while i < n:
-        group, key, val = _find_longest(state, text, i)
+        group, key, val = _find_group_and_key(state_ctx.state, text, i)
+        
         if not group:
-            # No mapping: pass through this char and reset to INIT
-            out.append(text[i])
+            # No match: pass through and reset
+            state_ctx.output += text[i]
             i += 1
-            state = INIT
+            state_ctx.state = INIT
+            state_ctx.CID = 0
+            state_ctx.PCID = 0
             continue
-
-        # Special handling: PHOLA in BYANJON_STATE inserts virama before mapped char
-        if state == BYANJON_STATE and group == "phola":
-            out.append("্")
-            out.append(val)
-        else:
-            out.append(val)
-
+        
+        # ===== Handle SLICER (/) - converts to anusvara in SHOR_STATE =====
+        if group == "slicer" and state_ctx.state == SHOR_STATE:
+            # In SHOR_STATE: delete last char and insert anusvara ঁ
+            if state_ctx.output:
+                state_ctx.output = state_ctx.output[:-1] + "ঁ"
+            else:
+                state_ctx.output += val
+            i += len(key)
+            state_ctx.state = _apply_transition(state_ctx.state, group)
+            continue
+        
+        # ===== Handle PHOLA (র-ফলা, য-ফলা) =====
+        if group == "phola" and state_ctx.state == BYANJON_STATE:
+            phola_cid = PHOLA.get(key)
+            if phola_cid and state_ctx.PCID:
+                # Check if (PCID, phola_cid) exists in JUKTOBORNO_MAP
+                if (state_ctx.PCID, phola_cid) in JUKTOBORNO_MAP:
+                    conjunct, new_cid = JUKTOBORNO_MAP[(state_ctx.PCID, phola_cid)]
+                    # Delete previous consonant and insert conjunct with halant
+                    state_ctx.output = state_ctx.output[:-1]  # Remove last consonant
+                    state_ctx.output += conjunct
+                    state_ctx.P2CID = state_ctx.PCID
+                    state_ctx.PCID = new_cid
+                    state_ctx.CID = new_cid
+                else:
+                    # No conjunct form, just insert halant + new consonant
+                    state_ctx.output = state_ctx.output[:-1]  # Remove last consonant
+                    char, cid = BYANJON.get(key, ("", phola_cid))
+                    if char:
+                        state_ctx.output += "्" + char  # halant + consonant
+                    state_ctx.P2CID = state_ctx.PCID
+                    state_ctx.PCID = cid if char else phola_cid
+                    state_ctx.CID = cid if char else phola_cid
+            else:
+                # Fallback: just insert the character (shouldn't happen)
+                state_ctx.output += val
+            i += len(key)
+            state_ctx.state = _apply_transition(state_ctx.state, group)
+            continue
+        
+        # ===== Handle BYANJON (consonants) - check for conjunct formation =====
+        if group == "byanjon" and key in BYANJON:
+            char, cid = BYANJON[key]
+            
+            # If in BYANJON_STATE and we have a PCID, check for conjunct
+            if state_ctx.state == BYANJON_STATE and state_ctx.PCID and (state_ctx.PCID, cid) in JUKTOBORNO_MAP:
+                # Conjunct consonant formation!
+                conjunct, new_cid = JUKTOBORNO_MAP[(state_ctx.PCID, cid)]
+                # Replace last consonant with conjunct form
+                state_ctx.output = state_ctx.output[:-1]  # Remove last consonant
+                state_ctx.output += conjunct
+                state_ctx.P2CID = state_ctx.PCID
+                state_ctx.PCID = new_cid
+                state_ctx.CID = new_cid
+            else:
+                # Simple consonant - just add it
+                state_ctx.output += char
+                state_ctx.P2CID = state_ctx.PCID
+                state_ctx.PCID = cid
+                state_ctx.CID = cid
+            
+            i += len(key)
+            state_ctx.state = _apply_transition(state_ctx.state, group)
+            continue
+        
+        # ===== Handle other groups (kar, diacritic, biram, etc.) =====
+        state_ctx.output += val
         i += len(key)
-        state = _apply_transition(state, group)
-
-    return "".join(out)
+        state_ctx.state = _apply_transition(state_ctx.state, group)
+    
+    return state_ctx.output
 
 
 def type_stream(text: str) -> Generator[str, None, None]:
-    """Generator: yields the converted text after each keystroke (1..len(text))."""
+    """Yield converted text after each keystroke"""
     for k in range(1, len(text) + 1):
         yield convert(text[:k])
 
@@ -474,8 +393,6 @@ def type_stream(text: str) -> Generator[str, None, None]:
 # Demo
 # --------------------------
 if __name__ == "__main__":
-    import sys
-
     print("🔡 Khipro Typing Preview (Press Enter to quit)\n")
 
     while True:
